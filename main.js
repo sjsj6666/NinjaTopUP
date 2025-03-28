@@ -1003,7 +1003,7 @@ if (confirmPayment) {
             this.disabled = false;
             return;
         }
-
+        
         const order = {
             userid: currentUser?.id || null,
             orderid: 'NTX' + Math.random().toString(36).substr(2, 9).toUpperCase(),
@@ -1017,13 +1017,36 @@ if (confirmPayment) {
             pointsearned: currentUser ? Math.floor(totalPrice * 100) : 0,
             reviewallowed: true
         };
-
+        
+        // Validate the order on the server
+        const validateResponse = await fetch('/api/validate-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(order),
+        });
+        const validateData = await validateResponse.json();
+        if (!validateResponse.ok) {
+            throw new Error(validateData.error || 'Order validation failed');
+        }
+        
         try {
             const { data, error } = await window.supabase
                 .from('orders')
                 .insert([order])
                 .select();
             if (error) throw error;
+        
+            // Send WhatsApp notification
+            const message = `Thank you for your order! Your order ID is ${order.orderid}. Total: $${order.total.toFixed(2)}. We will process it shortly.`;
+            await fetch('/api/send-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: checkoutPhone,
+                    message: message,
+                }),
+            });
+        
             currentOrder = data[0];
             cart = [];
             localStorage.setItem('ninjaCart', JSON.stringify([]));
@@ -1038,7 +1061,7 @@ if (confirmPayment) {
                 this.disabled = false;
             }, 2000);
         } catch (error) {
-            console.error('Error inserting order:', error.message);
+            console.error('Error processing order:', error.message);
             showNotification('Error placing order: ' + (error.message || 'Unknown error'));
             this.innerHTML = originalText;
             this.disabled = false;
