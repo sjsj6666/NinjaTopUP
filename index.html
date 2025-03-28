@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NinjaTopUp - Instant Game Credits</title>
+        <meta name="description" content="Your trusted platform for instant game top-ups like Mobile Legends, Genshin Impact, and more!">
+        <link rel="icon" href="/images/favicon.ico" type="image/x-icon">
+        <link rel="stylesheet" href="/styles.css?v=1">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
+        <script src="https://js.stripe.com/v3/"></script>
+        <style>
+            #review-page {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                text-align: center;
+            }
+    
+        #review-page header {
+            background-color: #ffffff;
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+    
+        #review-page h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 500;
+        }
+    
+        .review-container h2 {
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+    
+        .review-container p {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+    
+        .review-container h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+    
+        .star-rating {
+            font-size: 30px;
+            margin-bottom: 20px;
+        }
+    
+        .star-rating span {
+            cursor: pointer;
+            color: #ccc;
+            transition: color 0.2s;
+        }
+    
+        .star-rating span.hover,
+        .star-rating span.active {
+            color: #ffd700; /* Gold color for active/hover stars */
+        }
+    
+        #review-text,
+        #review-page-text {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+    
+        #submit-review-page,
+        #skip-review {
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+    
+        #submit-review-page:hover,
+        #skip-review:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script>
+        function navigate(event, path) {
+            event.preventDefault();
+            history.pushState({ path }, '', path);
+            window.dispatchEvent(new Event('popstate')); // Trigger main.js routing
+        }
+        // Dynamic metadata update (fallback for client-side)
+        function updateMetadata() {
+            const path = window.location.pathname;
+            let title = 'NinjaTopUp - Instant Game Credits';
+            let desc = 'Your trusted platform for instant game top-ups like Mobile Legends, Genshin Impact, and more!';
+            if (path.startsWith('/topup/')) {
+                const game = path.split('/')[2].replace(/-/g, ' ');
+                title = `Top-Up ${game} - NinjaTopUp`;
+                desc = `Buy ${game} credits instantly with NinjaTopUp!`;
+            } else if (path === '/cart') {
+                title = 'Cart - NinjaTopUp';
+                desc = 'Review your game top-up items before checkout.';
+            } else if (path === '/checkout') {
+                title = 'Checkout - NinjaTopUp';
+                desc = 'Complete your game top-up purchase securely.';
+            }
+            document.title = title;
+            document.querySelector('meta[name="description"]').setAttribute('content', desc);
+        }
+        window.addEventListener('popstate', updateMetadata);
+        window.addEventListener('load', updateMetadata);
+    </script>
+</head>
+<script>
+    // Force enable Add to Cart for testing
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('add-to-cart-btn').disabled = false;
+    });
+</script>
+<body>
+    <header>
+        <h1 id="ninja-title" role="button" tabindex="0" onkeydown="if(event.key === 'Enter') this.click();">NinjaTopUp</h1>
+        <p class="slogan">Your Trusted Platform for Instant Game Top-Ups</p>
+        <div class="top-right">
+            <div id="user-menu">
+                <span id="login-status" role="button" tabindex="0" onkeydown="if(event.key === 'Enter') this.click();" style="cursor: pointer;">Login</span>
+                <span id="dropdown-arrow" class="dropdown-arrow" style="display: none;">▼</span>
+                <div id="user-dropdown" class="dropdown-content" style="display: none;">
+                    <a href="/user-profile" id="profile-link" onclick="navigate(event, '/user-profile')">Profile</a>
+                    <a href="/user-orders" id="view-orders-link" onclick="navigate(event, '/user-orders')">View Orders</a>
+                    <a href="/redeem-points" id="redeem-points-link" onclick="navigate(event, '/redeem-points')">Redeem Points</a>
+                    <a href="#" id="logout-btn">Logout</a>
+                </div>
+            </div>
+            <div id="cart-icon" role="button" aria-label="View Cart" tabindex="0" onkeydown="if(event.key === 'Enter') this.click();">
+                <img id="cart-icon-img" src="/images/cart.jpg" alt="Cart">
+                <span id="cart-count">0</span>
+            </div>
+        </div>
+        <nav class="top-nav">
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/" id="home-link" onclick="navigate(event, '/')">Home</a></li>
+                <li class="dropdown">
+                    <a href="/products" class="dropbtn" onclick="navigate(event, '/products')">Products</a>
+                    <div class="dropdown-content">
+                        <a href="/products/uid" data-method="uid" onclick="navigate(event, '/products/uid')">UID Topup</a>
+                        <a href="/products/login" data-method="login" onclick="navigate(event, '/products/login')">Login Topup</a>
+                        <a href="/products/gift" data-method="gift" onclick="navigate(event, '/products/gift')">Gift Cards</a>
+                    </div>
+                </li>
+                <li><a href="/about-us" onclick="navigate(event, '/about-us')">About</a></li>
+                <li class="dropdown">
+                    <a href="/contact-us" class="dropbtn" onclick="navigate(event, '/contact-us')">Support</a>
+                    <div class="dropdown-content">
+                        <a href="https://t.me/maitopup" target="_blank">Telegram</a>
+                        <a href="https://wa.me/6584603731" target="_blank">WhatsApp</a>
+                    </div>
+                </li>
+                <li><a href="/past-transactions" onclick="navigate(event, '/past-transactions')">Past Transactions</a></li>
+                <li><a href="/user-orders" onclick="navigate(event, '/user-orders')">My Orders</a></li>
+                <li><a href="/reviews" onclick="navigate(event, '/reviews')">Reviews</a></li>
+            </ul>
+        </nav>
+        <div id="cart-notification-bar" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; background: #25D366; color: white; text-align: center; padding: 10px; z-index: 1003;">
+            <span id="cart-notification-text"></span>
+            <div id="cart-notification-progress" style="position: absolute; bottom: 0; left: 0; height: 4px; background: #fff; width: 100%; transform: scaleX(0); transform-origin: left; transition: transform 3s linear;"></div>
+        </div>
+    </header>
+    <audio id="background-music" loop>
+        <source src="sounds/background_music.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <section id="thank-you" style="display: none;">
+        <h2>Thank You!</h2>
+        <p>Your order has been placed successfully. Returning to home in <span id="countdown">3</span> seconds...</p>
+    </section>
+    <main>
+        <!-- Add this at the end of <main>, after other sections -->
+<section id="not-found" style="display: none;">
+    <h2>Page Not Found</h2>
+    <p>The requested page doesn't exist. <a href="#game-selection">Return to Home</a></p>
+  </section>
+        <section id="redeem-points" style="display: none;">
+            <h2>Redeem Points</h2>
+            <p>Your Points: <span id="user-points">0</span></p>
+            <div id="rewards-list" class="rewards-grid">
+                <div class="reward-card">
+                    <p>10% Discount Voucher</p>
+                    <button data-points="1000">Redeem (1000 pts)</button>
+                </div>
+                <div class="reward-card">
+                    <p>Free 60 Diamonds (MLBB)</p>
+                    <button data-points="2000">Redeem (2000 pts)</button>
+                </div>
+            </div>
+            <button onclick="goBack()" class="ninja-btn back-btn">Back</button>
+        </section>
+        <section id="transaction-history" style="display: none;">
+            <h2>Transaction History</h2>
+            <input type="text" id="order-search" placeholder="Search transactions...">
+            <div id="transaction-history-list"></div>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="game-selection" style="display: block;">
+            <div class="slideshow-container">
+                <a class="prev" onclick="plusSlides(-1)">❮</a>
+                <div class="slide" data-game="mobile-legends"><img src="images/mobile-legends-battle.jpg" alt="Mobile Legends Battle"></div>
+                <div class="slide" data-game="pubg-mobile"><img src="images/pubg-mobile-esports.jpg" alt="PUBG Mobile Esports"></div>
+                <div class="slide" data-game="genshin-impact"><img src="images/genshin-impact-characters.jpg" alt="Genshin Impact Characters"></div>
+                <div class="slide" data-game="honkai-star-rail"><img src="images/honkai-star-rail-festival.jpg" alt="Honkai: Star Rail Festival"></div>
+                <div class="slide" data-game="zenless-zone-zero"><img src="images/zenless-zone-zero.jpg" alt="Zenless Zone Zero"></div>
+                <a class="next" onclick="plusSlides(1)">❯</a>
+                <div class="dots-container">
+                    <span class="dot" onclick="currentSlide(1)"></span>
+                    <span class="dot" onclick="currentSlide(2)"></span>
+                    <span class="dot" onclick="currentSlide(3)"></span>
+                    <span class="dot" onclick="currentSlide(4)"></span>
+                    <span class="dot" onclick="currentSlide(5)"></span>
+                </div>
+            </div>
+            <h2>Search Your Game</h2>
+            <input type="text" id="game-search" placeholder="Search for a game...">
+            <div class="game-group">
+                <h3>Direct UID Top-Up</h3>
+                <div class="game-list">
+                    <div class="game-card" data-game="mobile-legends" data-method="uid">
+                        <a href="/topup/mobile-legends" onclick="navigate(event, '/topup/mobile-legends')">
+                            <img src="images/mobile-legends.png" alt="Mobile Legends">
+                            <span>Mobile Legends (ID)</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="mobile-legends-sg" data-method="uid">
+                        <a href="/topup/mobile-legends-sg" onclick="navigate(event, '/topup/mobile-legends-sg')">
+                            <img src="images/mobile-legends.png" alt="Mobile Legends SG">
+                            <span>Mobile Legends (SG)</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="genshin-impact" data-method="uid">
+                        <a href="/topup/genshin-impact" onclick="navigate(event, '/topup/genshin-impact')">
+                            <img src="images/genshin-impact.png" alt="Genshin Impact">
+                            <span>Genshin Impact</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="pubg-mobile" data-method="uid">
+                        <a href="/topup/pubg-mobile" onclick="navigate(event, '/topup/pubg-mobile')">
+                            <img src="images/pubg-mobile.png" alt="PUBG Mobile">
+                            <span>PUBG Mobile</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="identity-v" data-method="uid">
+                        <a href="/topup/identity-v" onclick="navigate(event, '/topup/identity-v')">
+                            <img src="images/identity-v.png" alt="Identity V">
+                            <span>Identity V</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="bloodstrike" data-method="uid">
+                        <a href="/topup/bloodstrike" onclick="navigate(event, '/topup/bloodstrike')">
+                            <img src="images/bloodstrike.png" alt="Bloodstrike">
+                            <span>Bloodstrike</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="honor-of-kings" data-method="uid">
+                        <a href="/topup/honor-of-kings" onclick="navigate(event, '/topup/honor-of-kings')">
+                            <img src="images/honor-of-kings.png" alt="Honor of Kings">
+                            <span>Honor of Kings</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="arena-breakout" data-method="uid">
+                        <a href="/topup/arena-breakout" onclick="navigate(event, '/topup/arena-breakout')">
+                            <img src="images/arena-breakout.png" alt="Arena Breakout">
+                            <span>Arena Breakout</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="marvel-rivals" data-method="uid">
+                        <a href="/topup/marvel-rivals" onclick="navigate(event, '/topup/marvel-rivals')">
+                            <img src="images/marvel-rivals.png" alt="Marvel Rivals">
+                            <span>Marvel Rivals</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="love-and-deepspace" data-method="uid">
+                        <a href="/topup/love-and-deepspace" onclick="navigate(event, '/topup/love-and-deepspace')">
+                            <img src="images/love-and-deepspace.png" alt="Love and Deepspace">
+                            <span>Love and Deepspace</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="marvel-snap" data-method="uid">
+                        <a href="/topup/marvel-snap" onclick="navigate(event, '/topup/marvel-snap')">
+                            <img src="images/marvel-snap.png" alt="Marvel Snap">
+                            <span>Marvel Snap</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="zenless-zone-zero" data-method="uid">
+                        <a href="/topup/zenless-zone-zero" onclick="navigate(event, '/topup/zenless-zone-zero')">
+                            <img src="images/zenless-zone-zero.png" alt="Zenless Zone Zero">
+                            <span>Zenless Zone Zero</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="honkai-star-rail" data-method="uid">
+                        <a href="/topup/honkai-star-rail" onclick="navigate(event, '/topup/honkai-star-rail')">
+                            <img src="images/honkai-star-rail.png" alt="Honkai: Star Rail">
+                            <span>Honkai: Star Rail</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="bigo-live" data-method="uid">
+                        <a href="/topup/bigo-live" onclick="navigate(event, '/topup/bigo-live')">
+                            <img src="images/bigo-live.png" alt="Bigo Live">
+                            <span>Bigo Live</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="ragnarok-m-classic" data-method="uid">
+                        <a href="/topup/ragnarok-m-classic" onclick="navigate(event, '/topup/ragnarok-m-classic')">
+                            <img src="images/ragnarok-m-classic.png" alt="Ragnarok M Classic">
+                            <span>Ragnarok M Classic</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="ragnarok-x" data-method="uid">
+                        <a href="/topup/ragnarok-x" onclick="navigate(event, '/topup/ragnarok-x')">
+                            <img src="images/ragnarok-x.png" alt="Ragnarok X">
+                            <span>Ragnarok X</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="ragnarok-origin-global" data-method="uid">
+                        <a href="/topup/ragnarok-origin-global" onclick="navigate(event, '/topup/ragnarok-origin-global')">
+                            <img src="images/ragnarok-origin-global.png" alt="Ragnarok Origin Global">
+                            <span>Ragnarok Origin Global</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="super-sus" data-method="uid">
+                        <a href="/topup/super-sus" onclick="navigate(event, '/topup/super-sus')">
+                            <img src="images/super-sus.png" alt="Super Sus">
+                            <span>Super Sus</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="eggy-party" data-method="uid">
+                        <a href="/topup/eggy-party" onclick="navigate(event, '/topup/eggy-party')">
+                            <img src="images/eggy-party.png" alt="Eggy Party">
+                            <span>Eggy Party</span>
+                        </a>
+                    </div>
+                    <div class="game-card" data-game="goddess-of-nikke" data-method="uid">
+                        <a href="/topup/goddess-of-nikke" onclick="navigate(event, '/topup/goddess-of-nikke')">
+                            <img src="images/goddess-of-nikke.png" alt="Goddess of Nikki">
+                            <span>Goddess of Nikke</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="game-group">
+                    <h3>Login Top-Up</h3>
+                    <div class="game-list">
+                        <div class="game-card" data-game="valorant-global" data-method="login">
+                            <a href="/topup/valorant-global" onclick="navigate(event, '/topup/valorant-global')">
+                                <img src="images/valorant-global.png" alt="Valorant Global">
+                                <span>Valorant Global</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="brawl-stars" data-method="login">
+                            <a href="/topup/brawl-stars" onclick="navigate(event, '/topup/brawl-stars')">
+                                <img src="images/brawl-stars.png" alt="Brawl Stars">
+                                <span>Brawl Stars</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="clash-of-clans" data-method="login">
+                            <a href="/topup/clash-of-clans" onclick="navigate(event, '/topup/clash-of-clans')">
+                                <img src="images/clash-of-clans.png" alt="Clash of Clans">
+                                <span>Clash of Clans</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="clash-royale" data-method="login">
+                            <a href="/topup/clash-royale" onclick="navigate(event, '/topup/clash-royale')">
+                                <img src="images/clash-royale.png" alt="Clash Royale">
+                                <span>Clash Royale</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="pokemon-tcg-pocket" data-method="login">
+                            <a href="/topup/pokemon-tcg-pocket" onclick="navigate(event, '/topup/pokemon-tcg-pocket')">
+                                <img src="images/pokemon-tcg-pocket.png" alt="Pokémon TCG Pocket">
+                                <span>Pokémon TCG Pocket</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="pokemon-unite" data-method="login">
+                            <a href="/topup/pokemon-unite" onclick="navigate(event, '/topup/pokemon-unite')">
+                                <img src="images/pokemon-unite.png" alt="Pokémon Unite">
+                                <span>Pokémon Unite</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="wuthering-waves" data-method="login">
+                            <a href="/topup/wuthering-waves" onclick="navigate(event, '/topup/wuthering-waves')">
+                                <img src="images/wuthering-waves.png" alt="Wuthering Waves">
+                                <span>Wuthering Waves</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="fc-mobile-sg" data-method="login">
+                            <a href="/topup/fc-mobile-sg" onclick="navigate(event, '/topup/fc-mobile-sg')">
+                                <img src="images/fc-mobile-sg.png" alt="FC Mobile SG">
+                                <span>FC Mobile SG</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="pubg" data-method="login">
+                            <a href="/topup/pubg" onclick="navigate(event, '/topup/pubg')">
+                                <img src="images/pubg.png" alt="PUBG">
+                                <span>PUBG</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="tiktok-coins" data-method="login">
+                            <a href="/topup/tiktok-coins" onclick="navigate(event, '/topup/tiktok-coins')">
+                                <img src="images/tiktok-coins.png" alt="TikTok Coins">
+                                <span>TikTok Coins</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="eafc25" data-method="login">
+                            <a href="/topup/eafc25" onclick="navigate(event, '/topup/eafc25')">
+                                <img src="images/eafc25.png" alt="EAFC 25">
+                                <span>EAFC25</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="game-group">
+                    <h3>Gift Card Top-Up</h3>
+                    <div class="game-list">
+                        <div class="game-card" data-game="valorant-sg" data-method="gift">
+                            <a href="/topup/valorant-sg" onclick="navigate(event, '/topup/valorant-sg')">
+                                <img src="images/valorant-sg.png" alt="Valorant SG">
+                                <span>Valorant SG</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="nintendo-switch-us" data-method="gift">
+                            <a href="/topup/nintendo-switch-us" onclick="navigate(event, '/topup/nintendo-switch-us')">
+                                <img src="images/nintendo-switch-us.png" alt="Nintendo Switch US">
+                                <span>Nintendo Switch (US)</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="nintendo-switch-japan" data-method="gift">
+                            <a href="/topup/nintendo-switch-japan" onclick="navigate(event, '/topup/nintendo-switch-japan')">
+                                <img src="images/nintendo-switch-japan.png" alt="Nintendo Switch Japan">
+                                <span>Nintendo Switch (Japan)</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="nintendo-switch-brazil" data-method="gift">
+                            <a href="/topup/nintendo-switch-brazil" onclick="navigate(event, '/topup/nintendo-switch-brazil')">
+                                <img src="images/nintendo-switch-brazil.png" alt="Nintendo Switch Brazil">
+                                <span>Nintendo Switch (Brazil)</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="playstation-card-singapore" data-method="gift">
+                            <a href="/topup/playstation-card-singapore" onclick="navigate(event, '/topup/playstation-card-singapore')">
+                                <img src="images/playstation-card-singapore.png" alt="PlayStation Card Singapore">
+                                <span>PlayStation Card (Singapore)</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="playstation-card-brazil" data-method="gift">
+                            <a href="/topup/playstation-card-brazil" onclick="navigate(event, '/topup/playstation-card-brazil')">
+                                <img src="images/playstation-card-brazil.png" alt="PlayStation Card Brazil">
+                                <span>PlayStation Card (Brazil)</span>
+                            </a>
+                        </div>
+                        <div class="game-card" data-game="playstation-card-us" data-method="gift">
+                            <a href="/topup/playstation-card-us" onclick="navigate(event, '/topup/playstation-card-us')">
+                                <img src="images/playstation-card-us.png" alt="PlayStation Card US">
+                                <span>PlayStation Card (US)</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+        </section>
+        <section id="order-confirmation" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; width: 80%; max-width: 500px;">
+            <div style="position: relative;">
+                <h2>Order Confirmation</h2>
+                <span id="close-confirmation" style="position: absolute; top: 10px; right: 10px; font-size: 20px; cursor: pointer;">✖</span>
+                <div id="confirmation-content" style="background: #fff; padding: 15px; border-radius: 4px; color: #333;">
+                    <p><strong>Tracking Number:</strong> <span id="tracking-number"></span></p>
+                    <p><strong>Item:</strong> <span id="item-name"></span></p>
+                    <img id="item-image" src="" alt="Item Image" style="max-width: 100px; display: block; margin: 10px 0;">
+                    <p><strong>Date & Time:</strong> <span id="order-datetime"></span></p>
+                    <p><strong>Buyer Details:</strong></p>
+                    <p id="buyer-details"></p>
+                    <p><strong>Game Credentials:</strong></p>
+                    <p id="game-credentials"></p>
+                    <p><strong>Next Step:</strong></p>
+                    <p>Please send your payment details via WhatsApp or Telegram:</p>
+                    <a id="whatsapp-link" href="#" target="_blank" style="display: inline-block; padding: 10px; background: #25D366; color: white; text-decoration: none; border-radius: 5px; margin-right: 10px;">Contact via WhatsApp</a>
+                    <a id="telegram-link" href="#" target="_blank" style="display: inline-block; padding: 10px; background: #0088cc; color: white; text-decoration: none; border-radius: 5px;">Contact via Telegram</a>
+                    <p>Include the following in your message:</p>
+                    <ul>
+                        <li>Game Name, Amount, and Details (pre-filled in the link)</li>
+                        <li>A screenshot of your payment confirmation from your bank</li>
+                    </ul>
+                </div>
+                <button onclick="showReviewPage()">Leave a Review</button>
+            </div>
+        </section>
+        <section id="topup-form" style="display: none;">
+            <div class="topup-header">
+                <h2>Top Up Your Game</h2>
+                <div id="game-details" class="game-details">
+                    <img id="game-banner" src="" alt="Game Banner" class="game-banner">
+                    <div class="game-info">
+                        <span id="selected-game" class="game-title"></span>
+                        <p id="game-info" class="game-desc"></p>
+                        <div class="details-tooltip">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-content">
+                                <img id="game-details-screenshot" src="" alt="Game Details">
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <form id="purchase-form" class="topup-form">
+                <div class="input-group uid-specific">
+                    <label for="user-id">Player ID</label>
+                    <input type="text" id="user-id" placeholder="Enter your Player ID" class="ninja-input" autocomplete="off">
+                    <span id="uid-verification-status" style="font-size: 14px; margin-top: 5px; display: block;"></span>
+                </div>
+                <div class="input-group uid-specific" id="genshin-server" style="display: none;">
+                    <label for="server-genshin">Server</label>
+                    <input type="hidden" id="server-genshin">
+                    <div id="server-genshin-options" class="server-options">
+                        <div class="server-option" data-value="Asia">Asia</div>
+                        <div class="server-option" data-value="Europe">Europe</div>
+                        <div class="server-option" data-value="America">America</div>
+                        <div class="server-option" data-value="TW, HK, MO">TW, HK, MO</div>
+                    </div>
+                    <span id="genshin-username-display" style="margin-left: 10px; font-style: italic;"></span>
+                </div>
+                <div class="input-group uid-specific" id="hsr-server" style="display: none;">
+                    <label for="server-hsr">Server</label>
+                    <input type="hidden" id="server-hsr" name="server-hsr" value="asia">
+                    <div id="server-hsr-options" class="server-options">
+                        <div class="server-option" data-value="asia">Asia</div>
+                        <div class="server-option" data-value="america">America</div>
+                        <div class="server-option" data-value="europe">Europe</div>
+                        <div class="server-option" data-value="tw-hk-mo">TW, HK, MO</div>
+                    </div>
+                    <span id="hsr-username-display" style="margin-left: 10px; font-style: italic;"></span>
+                </div>
+                <div class="input-group uid-specific" id="zzz-server" style="display: none;">
+                    <label for="server-zzz">Server</label>
+                    <input type="hidden" id="server-zzz" name="server-zzz" value="asia">
+                    <div id="server-zzz-options" class="server-options">
+                        <div class="server-option" data-value="asia">Asia</div>
+                        <div class="server-option" data-value="america">America</div>
+                        <div class="server-option" data-value="europe">Europe</div>
+                        <div class="server-option" data-value="tw-hk-mo">TW, HK, MO</div>
+                    </div>
+                    <span id="zzz-username-display" style="margin-left: 10px; font-style: italic;"></span>
+                </div>
+                <div class="input-group uid-specific" id="mlbb-server" style="display: none;">
+                    <label for="server-mlbb">Server ID</label>
+                    <input type="text" id="server-mlbb" placeholder="e.g., 12345" pattern="[0-9]{4,5}" class="ninja-input" autocomplete="off">
+                    <span id="mlbb-username-display" style="margin-left: 10px; font-style: italic;"></span>
+                </div>
+                <div class="input-group login-specific" style="display: none;">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" placeholder="Enter your game username" class="ninja-input" autocomplete="off">
+                </div>
+                <div class="input-group login-specific" style="display: none;">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your game password" class="ninja-input" autocomplete="off">
+                </div>
+                <div class="input-group gift-specific" style="display: none;">
+                    <label for="gift-code">Gift Card Code</label>
+                    <input type="text" id="gift-code" placeholder="Enter your gift card code" class="ninja-input" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label for="amount">Select Amount</label>
+                    <div id="amount-options" class="amount-grid"></div>
+                    <input type="hidden" id="amount" name="amount">
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="ninja-btn topup-btn" id="add-to-cart-btn" disabled>Add to Cart</button>
+                    <button type="button" onclick="goBack()" class="ninja-btn back-btn">Back</button>
+                </div>
+            </form>
+        </section>
+        <section id="cart" style="display: none;">
+            <h2>Your Cart</h2>
+            <div id="cart-items"></div>
+            <button id="checkout-btn" disabled>Proceed to Checkout</button>
+            <button onclick="goBack()">Continue Shopping</button>
+        </section>
+        <section id="checkout" style="display: none;">
+            <div class="checkout-container">
+                <h2>Checkout</h2>
+                <div id="checkout-items"></div>
+                <div class="checkout-total">
+                    <h3>Total: <span id="total-amount">$0.00</span></h3>
+                </div>
+                <label for="voucher-code-checkout">Voucher Code:</label>
+                <input type="text" id="voucher-code-checkout" placeholder="Enter voucher code">
+                <button id="apply-voucher-btn">Apply Voucher</button>
+                <label for="checkout-email">Email (for invoice and delivery status):</label>
+                <input type="email" id="checkout-email" placeholder="Enter your email">
+                <div id="checkout-phone-container">
+                    <label for="checkout-phone">WhatsApp Number:</label>
+                    <input type="text" id="checkout-phone-prefix" placeholder="Select country code">
+                    <div id="phone-options" class="phone-options"></div>
+                    <input type="tel" id="checkout-phone" placeholder="Enter your number">
+                </div>
+                <div id="payment-details" style="margin-top: 20px;">
+                    <h3>Pay with Stripe</h3>
+                    <p>Click below to complete your payment securely.</p>
+                    <button id="stripe-checkout-btn" class="ninja-btn" style="background-color: #6772e5; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Pay Now</button>
+                </div>
+                <button onclick="goBack()">Back to Cart</button>
+            </div>
+        </section>
+        <section id="review-prompt" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1002; width: 80%; max-width: 400px; background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+            <div style="position: relative;">
+                <h3>Leave a Review</h3>
+                <span id="close-review-prompt" style="position: absolute; top: 10px; right: 10px; font-size: 20px; cursor: pointer;">✖</span>
+                <div id="review-prompt-rating" class="star-rating">
+                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                </div>
+                <input type="hidden" id="review-prompt-rating-value" value="5">
+                <textarea id="review-text" placeholder="Write your review here..." style="width: 100%; height: 100px; margin: 10px 0;"></textarea>
+                <button id="submit-review" class="ninja-btn">Submit Review</button>
+            </div>
+        </section>
+        <section id="track-order" style="display: none;">
+            <h2>Track Your Order</h2>
+            <form id="track-order-form">
+                <label for="order-id">Order ID:</label>
+                <input type="text" id="order-id" placeholder="Enter your order ID">
+                <button type="submit">Track Order</button>
+            </form>
+            <div id="order-status" style="display: none;">
+                <h3>Order Status</h3>
+                <p id="status-text"></p>
+            </div>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="tnc" style="display: none;">
+            <h2>Terms & Conditions</h2>
+            <p>All purchases are final. No refunds unless specified in the Refund Policy. NinjaTopUp reserves the right to modify pricing or services at any time.</p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="faq" style="display: none;">
+            <h2>Frequently Asked Questions</h2>
+            <p><strong>Q: How long does delivery take?</strong><br>A: Most orders are processed within 5-10 minutes.</p>
+            <p><strong>Q: What if I enter the wrong ID?</strong><br>A: Contact us immediately for assistance.</p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="refund-policy" style="display: none;">
+            <h2>Refund Policy</h2>
+            <p>Refunds are issued only for unprocessed orders within 24 hours of purchase. Contact us with your order ID.</p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="contact-us" style="display: none;">
+            <h2>Contact Us</h2>
+            <p>
+                Reach us via:<br>
+                <a href="https://t.me/maitopup" target="_blank">Telegram: @maitopup</a><br>
+                <a href="https://wa.me/6584603731" target="_blank">WhatsApp: +65 8460 3731</a><br>
+                Available: Mon-Fri, 9 AM - 6 PM
+            </p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="reviews" style="display: none;">
+            <h2>Customer Reviews</h2>
+            <div id="reviews-grid" class="reviews-grid"></div>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="about-us" style="display: none;">
+            <h2>About Us</h2>
+            <p>We are NinjaTopUp, a dedicated platform for instant game top-ups, bringing convenience and speed to gamers worldwide.</p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="why-ninjatopup" style="display: none;">
+            <h2>Why NinjaTopUp</h2>
+            <p>Fast, reliable, and secure top-up services with a focus on customer satisfaction and competitive pricing.</p>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="past-transactions" style="display: none;">
+            <h2>Past Transactions</h2>
+            <div id="past-transactions-list"></div>
+            <button onclick="goBack()">Back</button>
+        </section>
+        <section id="user-orders" style="display: none;">
+            <h2>Your Past Orders</h2>
+            <input type="text" id="user-orders-search" placeholder="Search your orders..." class="ninja-input">
+            <div id="user-orders-list" class="transaction-list"></div>
+            <button onclick="goBack()" class="ninja-btn back-btn">Back</button>
+        </section>
+        <section id="login-page" style="display: none;">
+            <h2>Login or Register</h2>
+            <div id="login-form-container">
+                <form id="login-form">
+                    <label for="email-login-input">Email:</label>
+                    <input type="email" id="email-login-input" placeholder="Enter your email" required>
+                    <label for="password-login-input">Password:</label>
+                    <input type="password" id="password-login-input" placeholder="Enter your password" required>
+                    <label for="whatsapp-input">WhatsApp (optional):</label>
+                    <input type="text" id="whatsapp-input" placeholder="e.g., +6512345678">
+                    <button type="button" id="email-login-btn" class="ninja-btn">Login with Email</button>
+                    <button type="button" id="google-login-btn" class="ninja-btn">Login with Google</button>
+                    <button type="button" id="email-register-btn" class="ninja-btn">Register</button>
+                </form>
+            </div>
+            <button onclick="goBack()" class="ninja-btn back-btn">Back</button>
+        </section>
+        <section id="user-profile" style="display: none;">
+            <div class="profile-header">
+                <h1 id="ninja-title-profile" role="button" tabindex="0" onkeydown="if(event.key === 'Enter') this.click();">NinjaTopUp</h1>
+                <span id="profile-welcome" class="profile-welcome"></span>
+            </div>
+            <div class="user-info">
+                <h2>Edit Profile</h2>
+                <form id="edit-profile-form">
+                    <div class="input-group">
+                        <label for="edit-username">Username</label>
+                        <input type="text" id="edit-username" class="ninja-input" placeholder="Enter username">
+                    </div>
+                    <div class="input-group">
+                        <label for="edit-email">Email</label>
+                        <input type="email" id="edit-email" class="ninja-input" placeholder="Enter email">
+                    </div>
+                    <div class="input-group">
+                        <label for="edit-phone">Phone Number</label>
+                        <input type="tel" id="edit-phone" class="ninja-input" placeholder="Enter phone number">
+                    </div>
+                    <div class="input-group">
+                        <label>Account ID (Fixed)</label>
+                        <p id="fixed-account-id">N/A</p>
+                    </div>
+                    <div class="input-group">
+                        <label>Registered (Fixed)</label>
+                        <p id="profile-registered"></p>
+                    </div>
+                    <div class="input-group">
+                        <label>Points (Fixed)</label>
+                        <p id="profile-points"></p>
+                    </div>
+                    <button type="submit" class="ninja-btn">Save Changes</button>
+                </form>
+            </div>
+            <button onclick="goBack()" class="ninja-btn back-btn">Back</button>
+        </section>
+        <section id="review-page" style="display: none;">
+            <header>
+                <h1 id="ninja-title-review" role="button" tabindex="0" onkeydown="if(event.key === 'Enter') this.click();">NinjaTopUp</h1>
+            </header>
+            <div class="review-container">
+                <h2>Thank You for Purchasing from Us!</h2>
+                <p>Hope you have a pleasant experience.</p>
+                <h3>Please Leave Us a Review:</h3>
+                <div id="review-page-rating" class="star-rating">
+                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                </div>
+                <input type="hidden" id="review-page-rating-value" value="0">
+                <textarea id="review-page-text" placeholder="Write your review here..."></textarea> <!-- Changed ID -->
+                <button id="submit-review-page">Submit Review</button>
+                <button id="skip-review">Skip</button>
+            </div>
+        </section>
+        <section id="auth-callback" style="display: none;">
+            <h2>Processing Login...</h2>
+            <p>Please wait while we authenticate your login.</p>
+        </section>
+    </main>
+    <footer>
+        <div style="text-align: center; padding: 20px; background-color: transparent;">
+            <a href="#tnc" style="margin: 0 15px; text-decoration: none; color: #ffffff;">Terms & Conditions</a>
+            <a href="#faq" style="margin: 0 15px; text-decoration: none; color: #ffffff;">FAQ</a>
+            <a href="#refund-policy" style="margin: 0 15px; text-decoration: none; color: #ffffff;">Refund Policy</a>
+        </div>
+    </footer>
+    <div id="notification" class="notification" style="display: none;"></div>
+    <div id="notification-overlay" class="notification-overlay" onclick="hideNotification()"></div>
+    <div id="confirmation-overlay" class="notification-overlay" onclick="hideConfirmation()"></div>
+    <div id="review-prompt-overlay" class="notification-overlay" onclick="hideReviewPrompt()"></div>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const { createClient } = supabase;
+        window.supabase = createClient(
+            'https://mcbrtveqcprdvnmqscze.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jYnJ0dmVxY3ByZHZubXFzY3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIxNDMyMzgsImV4cCI6MjA1NzcxOTIzOH0.byNV0MNwbcLzP6pM6hqf1SPg9eYs-RLkTRpS5I--DHU',
+            {
+                auth: {
+                    redirectTo: 'https://doctopup.netlify.app/auth/v1/callback',
+                    autoRefreshToken: true,
+                    persistSession: true
+                }
+            }
+        );
+        console.log('Supabase initialized:', window.supabase);
+    </script>
+    <script src="/gameOptions.js?v=1"></script>
+    <script src="/main.js?v=1"></script>
+    <script>
+        const stripe = Stripe('pk_test_51R5Y72BGq5OVGIufs2XsTTV4sdaJUr7LFVWXkRYgNMAHA2eUnSJ2SboJ38M0OenSRPFTUh7BxywExkQgXRyZIatw00f8OMW74p');
+        document.getElementById('stripe-checkout-btn').addEventListener('click', function() {
+            const totalAmount = document.getElementById('total-amount').textContent.replace('$', '');
+            const amountInCents = Math.round(parseFloat(totalAmount) * 100);
+            fetch('/.netlify/functions/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: amountInCents,
+                    email: document.getElementById('checkout-email').value,
+                    phone: document.getElementById('checkout-phone').value
+                })
+            })
+            .then(response => response.json())
+            .then(session => {
+                return stripe.redirectToCheckout({ sessionId: session.id });
+            })
+            .catch(error => {
+                alert('Payment error: ' + error.message);
+            });
+        });
+    </script>
+</body>
+</html>
