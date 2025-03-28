@@ -1,9 +1,11 @@
 const express = require('express');
 const fetch = require('node-fetch');
+const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, '.')));
 
 app.get('/api/time', (req, res) => {
     res.json({ time: new Date().toISOString() });
@@ -64,6 +66,10 @@ app.post('/api/send-notification', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: `Error sending notification: ${error.message}` });
     }
+});
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(port, () => {
